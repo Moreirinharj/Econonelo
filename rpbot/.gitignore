@@ -1,0 +1,4 @@
+.env
+rpbot.db
+__pycache__/
+*.pyc
