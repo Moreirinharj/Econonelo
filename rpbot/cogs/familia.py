@@ -53,20 +53,20 @@ class Familia(commands.Cog):
         """Retorna (meu_personagem, personagem_alvo) ou None se algo faltar (já avisando o usuário)."""
         meu = db.pegar_personagem_ativo(str(ctx.author.id))
         if meu is None:
-            await ctx.reply("Você precisa de um personagem ativo. Use `?jogar`.")
+            await ctx.reply("Você precisa de um personagem ativo. Use `?jogar`.", ephemeral=True)
             return None, None
 
         if membro is None:
-            await ctx.reply("Marque um usuário ou passe o ID dele. Ex: `?adcpai @usuario`")
+            await ctx.reply("Marque um usuário ou passe o ID dele. Ex: `?adcpai @usuario`", ephemeral=True)
             return None, None
 
         if membro.id == ctx.author.id:
-            await ctx.reply("Você não pode adicionar a si mesmo.")
+            await ctx.reply("Você não pode adicionar a si mesmo.", ephemeral=True)
             return None, None
 
         alvo = db.pegar_personagem_ativo(str(membro.id))
         if alvo is None:
-            await ctx.reply(f"{membro.display_name} não tem um personagem ativo.")
+            await ctx.reply(f"{membro.display_name} não tem um personagem ativo.", ephemeral=True)
             return None, None
 
         return meu, alvo
@@ -77,11 +77,11 @@ class Familia(commands.Cog):
             return
 
         if tipo in ("pai", "mae") and db.contar_pais(meu["id"]) >= 2:
-            await ctx.reply("Seu personagem já tem 2 pais/mães. Remova um antes de adicionar outro.")
+            await ctx.reply("Seu personagem já tem 2 pais/mães. Remova um antes de adicionar outro.", ephemeral=True)
             return
 
         if db.ja_existe_relacao(meu["id"], alvo["id"], tipo):
-            await ctx.reply("Já existe um pedido ou relação desse tipo com essa pessoa.")
+            await ctx.reply("Já existe um pedido ou relação desse tipo com essa pessoa.", ephemeral=True)
             return
 
         pedido_id = db.criar_pedido_relacao(meu["id"], alvo["id"], tipo)
@@ -89,7 +89,7 @@ class Familia(commands.Cog):
         view = ConfirmarRelacaoView(pedido_id, membro.id, tipo, meu["nome"], alvo["nome"])
         await ctx.reply(
             f"{membro.mention}, {meu['nome']} quer te adicionar como **{NOME_TIPO[tipo]}** "
-            f"(seu personagem: {alvo['nome']}). Você aceita?",
+            f"(seu personagem: {alvo['nome']}, ephemeral=True). Você aceita?",
             view=view,
         )
 
@@ -101,9 +101,9 @@ class Familia(commands.Cog):
 
         removeu = db.remover_relacao_direta(meu["id"], alvo["id"], tipo)
         if removeu:
-            await ctx.reply(f"Removido: {alvo['nome']} não é mais seu(sua) {NOME_TIPO[tipo]}.")
+            await ctx.reply(f"Removido: {alvo['nome']} não é mais seu(sua, ephemeral=True) {NOME_TIPO[tipo]}.")
         else:
-            await ctx.reply("Não encontrei essa relação.")
+            await ctx.reply("Não encontrei essa relação.", ephemeral=True)
 
     async def _abrir_processo_remocao(self, ctx, membro: discord.Member, tipo: str):
         """Pai/mãe/filho/filha só saem via processo da OAB."""
@@ -116,7 +116,7 @@ class Familia(commands.Cog):
             f"📋 Processo #{processo_id} aberto na OAB pra remover {alvo['nome']} como "
             f"**{NOME_TIPO[tipo]}** do seu personagem.\n"
             f"Um advogado vai encaminhar ao juiz — isso ainda depende do sistema de "
-            f"Justiça (Fase 2). Por enquanto, um administrador pode resolver manualmente "
+            f"Justiça (Fase 2, ephemeral=True). Por enquanto, um administrador pode resolver manualmente "
             f"com `?resolveroab {processo_id} aprovar`."
         )
 
@@ -177,13 +177,13 @@ class Familia(commands.Cog):
     async def resolveroab(self, ctx, processo_id: int, decisao: str):
         decisao = decisao.lower()
         if decisao not in ("aprovar", "negar"):
-            await ctx.reply("Use `aprovar` ou `negar`.")
+            await ctx.reply("Use `aprovar` ou `negar`.", ephemeral=True)
             return
         processo = db.resolver_processo_oab(processo_id, aprovar=(decisao == "aprovar"))
         if processo is None:
-            await ctx.reply("Processo não encontrado.")
+            await ctx.reply("Processo não encontrado.", ephemeral=True)
             return
-        await ctx.reply(f"Processo #{processo_id} foi **{decisao}do**.")
+        await ctx.reply(f"Processo #{processo_id} foi **{decisao}do**.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

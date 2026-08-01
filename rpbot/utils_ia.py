@@ -1,29 +1,16 @@
 import os
-from anthropic import Anthropic, APIError
-
-_cliente = None
-
-
-def _pegar_cliente():
-    global _cliente
-    if _cliente is None:
-        chave = os.getenv("ANTHROPIC_API_KEY")
-        if not chave:
-            return None
-        _cliente = Anthropic(api_key=chave)
-    return _cliente
-
+import requests
 
 def ia_disponivel() -> bool:
-    return os.getenv("ANTHROPIC_API_KEY") is not None
+    return os.getenv("GROQ_API_KEY") is not None
 
 
 def gerar_boletim_ocorrencia(nome_personagem: str, descricao_usuario: str) -> str:
     """Transforma o relato informal do jogador em um Boletim de Ocorrência formal."""
-    cliente = _pegar_cliente()
-    if cliente is None:
+    chave = os.getenv("GROQ_API_KEY")
+    if not chave:
         return (
-            "⚠️ A IA jurídica não está configurada (falta ANTHROPIC_API_KEY no .env). "
+            "⚠️ A IA jurídica não está configurada (falta GROQ_API_KEY no .env). "
             "Peça pra um advogado humano registrar manualmente por enquanto."
         )
 
@@ -38,11 +25,21 @@ def gerar_boletim_ocorrencia(nome_personagem: str, descricao_usuario: str) -> st
     )
 
     try:
-        resposta = cliente.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
+        resposta = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {chave}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "max_tokens": 400,
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=30
         )
-        return resposta.content[0].text
-    except APIError as e:
+        resposta.raise_for_status()
+        dados = resposta.json()
+        return dados["choices"][0]["message"]["content"]
+    except Exception as e:
         return f"⚠️ Erro ao gerar o boletim pela IA: {e}"

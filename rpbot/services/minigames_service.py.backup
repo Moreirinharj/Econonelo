@@ -1,0 +1,451 @@
+"""Minigames de profissões."""
+import random
+import database as db
+from data import balanceamento as bal
+from utils.logger import log_acao
+
+
+def _recompensa_trabalho(personagem_id: int, profissao: str, multiplicador: float = 1.0) -> dict:
+    salario = bal.obter_salario(profissao)
+    ganho = int(random.randint(salario["min"], salario["max"]) * multiplicador)
+    xp = int(salario["xp"] * multiplicador)
+    resultado = db.registrar_trabalho_personagem(personagem_id, ganho, xp)
+    return {"ganho": ganho, "xp": xp, "subiu_nivel": resultado["subiu_nivel"], "nivel": resultado["nivel"]}
+
+
+# ===== POLICIAL MILITAR =====
+CENARIOS_PATRULHA = [
+    {"texto": "Você vê um suspeito correndo com uma bolsa.", "opcoes": ["Perseguir", "Chamar reforço", "Ignorar"], "correta": 0, "reward": 1.2},
+    {"texto": "Um carro está em alta velocidade na contramão.", "opcoes": ["Bloquear a via", "Anotar a placa", "Sair do caminho"], "correta": 1, "reward": 0.8},
+    {"texto": "Você ouve gritos vindos de um beco escuro.", "opcoes": ["Entrar sozinho", "Chamar reforço e entrar", "Ignorar"], "correta": 1, "reward": 1.5},
+    {"texto": "Uma loja está sendo arrombada à noite.", "opcoes": ["Entrar atirando", "Cercar e chamar apoio", "Esperar o ladrão sair"], "correta": 1, "reward": 1.3},
+    {"texto": "Um cidadão pede ajuda: perdeu o filho no parque.", "opcoes": ["Iniciar busca", "Dizer pra ele procurar", "Chamar a central"], "correta": 0, "reward": 1.0},
+]
+
+
+def minigame_patrulha(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_PATRULHA)
+    return {"tipo": "patrulha", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_patrulha(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "policial_militar", reward)
+        db.modificar_status_personagem(personagem_id, "reputacao", bal.REPUTACAO_POR_TRABALHO)
+        return {"sucesso": True, "mensagem": "✅ Boa decisão, policial!", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "policial_militar", 0.3)
+        db.modificar_status_personagem(personagem_id, "estresse", 10)
+        return {"sucesso": False, "mensagem": "❌ Decisão errada. Você foi advertido.", "recompensa": recompensa}
+
+
+# ===== POLICIAL CIVIL (BLITZ) =====
+CENARIOS_BLITZ = [
+    {"texto": "Motorista sem cinto de segurança.", "opcoes": ["Multar", "Apreender", "Prender", "Liberar"], "correta": 0, "reward": 1.0},
+    {"texto": "Motorista com documento vencido.", "opcoes": ["Multar", "Apreender o veículo", "Prender", "Liberar"], "correta": 1, "reward": 1.0},
+    {"texto": "Motorista alcoolizado no bafômetro.", "opcoes": ["Multar", "Apreender", "Prender", "Liberar"], "correta": 2, "reward": 1.5},
+    {"texto": "Motorista com tudo em dia.", "opcoes": ["Multar", "Apreender", "Prender", "Liberar"], "correta": 3, "reward": 0.5},
+    {"texto": "Moto sem capacete.", "opcoes": ["Multar", "Apreender", "Prender", "Liberar"], "correta": 0, "reward": 1.0},
+]
+
+
+def minigame_blitz(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_BLITZ)
+    return {"tipo": "blitz", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_blitz(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    """Agora usa o MESMO padrão dos outros minigames (índice)."""
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "policial_civil", reward)
+        db.modificar_status_personagem(personagem_id, "reputacao", 2)
+        return {"sucesso": True, "mensagem": "✅ Procedimento correto! Multa aplicada.", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "policial_civil", 0.2)
+        return {"sucesso": False, "mensagem": "❌ Procedimento incorreto. Corregedoria vai te chamar.", "recompensa": recompensa}
+
+
+# ===== MÉDICO =====
+CENARIOS_CONSULTA = [
+    {"texto": "Paciente com febre alta e dor de garganta há 3 dias.", "diagnostico": "amigdalite", "opcoes": ["amigdalite", "gripe", "pneumonia", "alergia"]},
+    {"texto": "Paciente com dor no peito e falta de ar.", "diagnostico": "infarto", "opcoes": ["gastrite", "infarto", "ansiedade", "asma"]},
+    {"texto": "Criança com manchas vermelhas e coceira.", "diagnostico": "catapora", "opcoes": ["sarampo", "catapora", "alergia", "dengue"]},
+    {"texto": "Paciente com dor abdominal no lado direito inferior.", "diagnostico": "apendicite", "opcoes": ["gastrite", "pedra nos rins", "apendicite", "intoxicação"]},
+    {"texto": "Paciente com tontura, sede excessiva e urina frequente.", "diagnostico": "diabetes", "opcoes": ["anemia", "diabetes", "labirintite", "hipertensão"]},
+]
+
+
+def minigame_consulta(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_CONSULTA)
+    return {"tipo": "consulta", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["opcoes"].index(cenario["diagnostico"]), "personagem_id": personagem_id}
+
+
+def resolver_consulta(personagem_id: int, escolha: int, correta: int) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "medico", 1.2)
+        db.modificar_status_personagem(personagem_id, "reputacao", 2)
+        return {"sucesso": True, "mensagem": "✅ Diagnóstico correto! Paciente tratado.", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "medico", 0.3)
+        db.modificar_status_personagem(personagem_id, "estresse", 15)
+        return {"sucesso": False, "mensagem": "❌ Diagnóstico errado. Paciente piorou.", "recompensa": recompensa}
+
+
+# ===== SAMU =====
+CENARIOS_EMERGENCIA = [
+    {"texto": "Vítima de atropelamento, inconsciente, sangramento na perna.", "prioridade": "estancar_sangramento", "opcoes": ["estancar_sangramento", "checar_pulso", "imobilizar", "chamar_helicoptero"]},
+    {"texto": "Pessoa em parada cardiorrespiratória.", "prioridade": "massagem_cardiaca", "opcoes": ["massagem_cardiaca", "dar_agua", "esperar_ambu", "checar_documentos"]},
+    {"texto": "Criança engasgada com brinquedo pequeno.", "prioridade": "manobra_heimlich", "opcoes": ["manobra_heimlich", "dar_tapa_nas_costas", "colocar_dedo_na_garganta", "deitar_a_crianca"]},
+]
+
+
+def minigame_emergencia_medica(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_EMERGENCIA)
+    return {"tipo": "emergencia", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["opcoes"].index(cenario["prioridade"]), "personagem_id": personagem_id}
+
+
+def resolver_emergencia_medica(personagem_id: int, escolha: int, correta: int) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "samu", 1.5)
+        db.modificar_status_personagem(personagem_id, "reputacao", 3)
+        return {"sucesso": True, "mensagem": "✅ Atendimento perfeito! Vida salva.", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "samu", 0.2)
+        db.modificar_status_personagem(personagem_id, "estresse", 20)
+        return {"sucesso": False, "mensagem": "❌ Procedimento errado. Paciente em risco.", "recompensa": recompensa}
+
+
+# ===== PROFESSOR =====
+CENARIOS_AULA = [
+    {"texto": "Aluno está atrapalhando a aula constantemente.", "opcoes": ["Expulsar da sala", "Conversar em particular", "Ignorar", "Gritar com ele"], "correta": 1, "reward": 1.0},
+    {"texto": "A turma inteira tirou nota baixa na prova.", "opcoes": ["Reprovar todos", "Revisar o conteúdo e dar nova prova", "Cancelar a prova", "Culpar os alunos"], "correta": 1, "reward": 1.2},
+    {"texto": "Pai de aluno reclama que o filho está sendo injustiçado.", "opcoes": ["Ignorar o pai", "Ouvir e revisar a situação", "Dar nota máxima pro filho", "Chamar a direção"], "correta": 1, "reward": 1.0},
+    {"texto": "Você percebe que um aluno está sendo bullied.", "opcoes": ["Fingir que não viu", "Intervir e conversar com os envolvidos", "Suspender o aluno vítima", "Chamar a polícia"], "correta": 1, "reward": 1.3},
+]
+
+
+def minigame_aula(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_AULA)
+    return {"tipo": "aula", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_aula(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "professor", reward)
+        db.modificar_status_personagem(personagem_id, "felicidade", 5)
+        return {"sucesso": True, "mensagem": "✅ Ótima decisão pedagógica!", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "professor", 0.3)
+        db.modificar_status_personagem(personagem_id, "estresse", 10)
+        return {"sucesso": False, "mensagem": "❌ Decisão ruim. A coordenação vai te chamar.", "recompensa": recompensa}
+
+
+# ===== MOTOBOY =====
+CENARIOS_ENTREGA = [
+    {"texto": "Chuva forte no caminho da entrega.", "opcoes": ["Ir devagar com cuidado", "Correr pra chegar logo", "Cancelar a entrega", "Pegar atalho por rua de terra"], "correta": 0, "reward": 1.0},
+    {"texto": "Cliente não atende o interfone.", "opcoes": ["Ir embora", "Ligar pro cliente e esperar", "Deixar na portaria sem avisar", "Jogar o pedido por cima do muro"], "correta": 1, "reward": 1.0},
+    {"texto": "Pneu furou no meio da entrega.", "opcoes": ["Trocar o pneu e continuar", "Abandonar a moto", "Pedir outro motoboy", "Ligar pro cliente e explicar"], "correta": 3, "reward": 0.8},
+    {"texto": "Trânsito completamente parado.", "opcoes": ["Ficar parado esperando", "Cortar por entre os carros com cuidado", "Voltar pro restaurante", "Subir na calçada"], "correta": 1, "reward": 1.2},
+]
+
+
+def minigame_entrega(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_ENTREGA)
+    return {"tipo": "entrega", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_entrega(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "motoboy", reward)
+        return {"sucesso": True, "mensagem": "✅ Entrega concluída com sucesso!", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "motoboy", 0.2)
+        db.modificar_status_personagem(personagem_id, "estresse", 10)
+        return {"sucesso": False, "mensagem": "❌ Entrega problemática. Avaliação ruim do cliente.", "recompensa": recompensa}
+
+
+# ===== CRIMINOSO =====
+CENARIOS_CRIME = [
+    {"texto": "Oportunidade de roubar uma loja deserta à noite.", "opcoes": ["Invadir pela frente", "Invadir pelos fundos", "Desistir", "Colocar fogo na loja"], "correta": 1, "reward": 1.5, "risco": 0.3},
+    {"texto": "Um rival da facção apareceu no seu território.", "opcoes": ["Confrontar diretamente", "Chamar os parceiros", "Ignorar", "Fugir"], "correta": 1, "reward": 1.2, "risco": 0.5},
+    {"texto": "A polícia está fazendo blitz na sua rota de fuga.", "opcoes": ["Passar pela blitz", "Dar meia volta", "Abandonar o carro e correr", "Se entregar"], "correta": 1, "reward": 0.8, "risco": 0.4},
+]
+
+
+def minigame_crime(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_CRIME)
+    return {"tipo": "crime", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "risco": cenario["risco"],
+            "personagem_id": personagem_id}
+
+
+def resolver_crime(personagem_id: int, escolha: int, correta: int, reward: float, risco: float) -> dict:
+    if escolha == correta:
+        if random.random() < risco:
+            db.prender_personagem(personagem_id)
+            db.adicionar_registro_criminal(personagem_id, "Preso em flagrante")
+            db.modificar_status_personagem(personagem_id, "reputacao", bal.REPUTACAO_POR_CRIME)
+            return {"sucesso": False, "mensagem": "🔒 Você foi preso em flagrante!", "recompensa": None, "preso": True}
+        recompensa = _recompensa_trabalho(personagem_id, "criminoso", reward)
+        db.modificar_status_personagem(personagem_id, "reputacao", bal.REPUTACAO_POR_CRIME)
+        return {"sucesso": True, "mensagem": "✅ Crime bem sucedido... por enquanto.", "recompensa": recompensa, "preso": False}
+    else:
+        if random.random() < risco * 1.5:
+            db.prender_personagem(personagem_id)
+            db.adicionar_registro_criminal(personagem_id, "Preso em flagrante")
+            return {"sucesso": False, "mensagem": "🔒 Deu tudo errado! Você foi preso!", "recompensa": None, "preso": True}
+        recompensa = _recompensa_trabalho(personagem_id, "criminoso", 0.1)
+        db.modificar_status_personagem(personagem_id, "estresse", 20)
+        return {"sucesso": False, "mensagem": "❌ Operação fracassada. Você escapou por pouco.", "recompensa": recompensa, "preso": False}
+
+
+# ===== ADVOGADO =====
+CENARIOS_AUDIENCIA = [
+    {"texto": "O juiz questiona a validade da prova apresentada.", "opcoes": ["Argumentar com jurisprudência", "Gritar com o juiz", "Desistir da prova", "Pedir adiamento"], "correta": 0, "reward": 1.3},
+    {"texto": "A testemunha de defesa mudou o depoimento.", "opcoes": ["Contradizer com provas", "Ignorar", "Pedir prisão da testemunha", "Chorar"], "correta": 0, "reward": 1.5},
+    {"texto": "O promotor apresenta uma prova surpresa.", "opcoes": ["Pedir vista do processo", "Aceitar sem questionar", "Acusar o promotor de fraude", "Sair da audiência"], "correta": 0, "reward": 1.2},
+]
+
+
+def minigame_audiencia(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_AUDIENCIA)
+    return {"tipo": "audiencia", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_audiencia(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    personagem = db.obter_personagem_por_id(personagem_id)
+    profissao = personagem["profissao"] if personagem and personagem["profissao"] else "advogado"
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, profissao, reward)
+        db.modificar_status_personagem(personagem_id, "reputacao", 3)
+        return {"sucesso": True, "mensagem": "✅ Excelente argumentação! Cliente satisfeito.", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, profissao, 0.3)
+        db.modificar_status_personagem(personagem_id, "estresse", 15)
+        return {"sucesso": False, "mensagem": "❌ Péssima atuação. Cliente vai te processar.", "recompensa": recompensa}
+
+
+# ===== EMPRESÁRIO =====
+CENARIOS_NEGOCIO = [
+    {"texto": "Concorrente baixou os preços em 30%.", "opcoes": ["Baixar mais ainda", "Investir em marketing", "Fechar a empresa", "Processar o concorrente"], "correta": 1, "reward": 1.3},
+    {"texto": "Fornecedor quer aumentar o preço da matéria-prima.", "opcoes": ["Aceitar", "Negociar desconto por volume", "Trocar de fornecedor", "Fechar a fábrica"], "correta": 1, "reward": 1.2},
+    {"texto": "Funcionário-chave ameaça pedir demissão.", "opcoes": ["Demitir antes", "Oferecer aumento e benefícios", "Ignorar", "Chorar"], "correta": 1, "reward": 1.0},
+]
+
+
+def minigame_negocio(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_NEGOCIO)
+    return {"tipo": "negocio", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_negocio(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "empresario", reward)
+        return {"sucesso": True, "mensagem": "✅ Decisão empresarial brilhante!", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "empresario", 0.2)
+        db.modificar_status_personagem(personagem_id, "estresse", 15)
+        return {"sucesso": False, "mensagem": "❌ Decisão ruim. Prejuízo no trimestre.", "recompensa": recompensa}
+
+
+# ===== JOGADOR DE FUTEBOL =====
+CENARIOS_JOGO = [
+    {"texto": "Você recebe a bola na área adversária com um zagueiro na frente.", "opcoes": ["Driblar", "Chutar de longe", "Tocar pro companheiro", "Fazer cera"], "correta": 2, "reward": 1.3},
+    {"texto": "Falta perigosa contra você na entrada da área.", "opcoes": ["Cobrar direto pro gol", "Cruzar na área", "Tocar curto", "Reclamar com o juiz"], "correta": 0, "reward": 1.5},
+    {"texto": "Último minuto, seu time perde de 1x0. Pênalti pra vocês.", "opcoes": ["Bater no canto esquerdo", "Bater no meio", "Bater no canto direito", "Pedir pro colega bater"], "correta": 0, "reward": 2.0},
+]
+
+
+def minigame_jogo_futebol(personagem_id: int) -> dict:
+    cenario = random.choice(CENARIOS_JOGO)
+    return {"tipo": "jogo", "texto": cenario["texto"], "opcoes": cenario["opcoes"],
+            "correta": cenario["correta"], "reward": cenario["reward"], "personagem_id": personagem_id}
+
+
+def resolver_jogo_futebol(personagem_id: int, escolha: int, correta: int, reward: float) -> dict:
+    if escolha == correta:
+        recompensa = _recompensa_trabalho(personagem_id, "jogador_futebol", reward)
+        db.modificar_status_personagem(personagem_id, "felicidade", 10)
+        return {"sucesso": True, "mensagem": "⚽ GOLAÇO! Torcida enlouqueceu!", "recompensa": recompensa}
+    else:
+        recompensa = _recompensa_trabalho(personagem_id, "jogador_futebol", 0.3)
+        db.modificar_status_personagem(personagem_id, "estresse", 10)
+        return {"sucesso": False, "mensagem": "❌ Jogada errada. Técnico vai te tirar.", "recompensa": recompensa}
+
+
+# ===== ROTEADOR =====
+MINIGAMES_POR_PROFISSAO = {
+    "policial_militar": {"funcao": minigame_patrulha, "resolver": resolver_patrulha, "nome": "Patrulha"},
+    "policial_civil": {"funcao": minigame_blitz, "resolver": resolver_blitz, "nome": "Blitz"},
+    "medico": {"funcao": minigame_consulta, "resolver": resolver_consulta, "nome": "Consulta"},
+    "samu": {"funcao": minigame_emergencia_medica, "resolver": resolver_emergencia_medica, "nome": "Emergência"},
+    "professor": {"funcao": minigame_aula, "resolver": resolver_aula, "nome": "Aula"},
+    "motoboy": {"funcao": minigame_entrega, "resolver": resolver_entrega, "nome": "Entrega"},
+    "criminoso": {"funcao": minigame_crime, "resolver": resolver_crime, "nome": "Crime"},
+    "advogado": {"funcao": minigame_audiencia, "resolver": resolver_audiencia, "nome": "Audiência"},
+    "advogado_criminal": {"funcao": minigame_audiencia, "resolver": resolver_audiencia, "nome": "Audiência Criminal"},
+    "empresario": {"funcao": minigame_negocio, "resolver": resolver_negocio, "nome": "Negócios"},
+    "jogador_futebol": {"funcao": minigame_jogo_futebol, "resolver": resolver_jogo_futebol, "nome": "Jogo"},
+    "juiz": {"funcao": minigame_audiencia, "resolver": resolver_audiencia, "nome": "Julgamento"},
+
+    "vendedor": {
+        "nome": "Venda ao Cliente",
+        "descricao": "Um cliente entrou na loja! Convença ele a comprar.",
+        "perguntas": [
+            {
+                "pergunta": "O cliente diz que o produto tá caro. O que você faz?",
+                "opcoes": [
+                    "Ignora e atende outro cliente",
+                    "Oferece um desconto e mostra os benefícios",
+                    "Diz que o preço é justo e ponto final",
+                    "Finge que não ouviu"
+                ],
+                "correta": 1,
+                "xp": 15,
+                "recompensa_min": 30,
+                "recompensa_max": 80
+            },
+            {
+                "pergunta": "O cliente tá indeciso entre dois produtos. O que você faz?",
+                "opcoes": [
+                    "Empurra o mais caro sem explicar",
+                    "Diz que tanto faz, os dois são iguais",
+                    "Pergunta o que ele precisa e recomenda o ideal",
+                    "Deixa o cliente sozinho pra pensar"
+                ],
+                "correta": 2,
+                "xp": 15,
+                "recompensa_min": 30,
+                "recompensa_max": 80
+            },
+            {
+                "pergunta": "O cliente reclama que o produto veio com defeito. O que você faz?",
+                "opcoes": [
+                    "Diz que a culpa é dele",
+                    "Pede desculpas, troca o produto e oferece um brinde",
+                    "Manda ele falar com o gerente e sai",
+                    "Diz que não tem troca"
+                ],
+                "correta": 1,
+                "xp": 20,
+                "recompensa_min": 25,
+                "recompensa_max": 70
+            },
+            {
+                "pergunta": "A loja tá vazia e entra um cliente apressado. O que você faz?",
+                "opcoes": [
+                    "Atende devagar pra ele ficar mais tempo",
+                    "Atende rápido, mostra o que ele quer e fecha a venda",
+                    "Diz que a loja vai fechar",
+                    "Finge que tá no estoque"
+                ],
+                "correta": 1,
+                "xp": 15,
+                "recompensa_min": 35,
+                "recompensa_max": 90
+            },
+            {
+                "pergunta": "O cliente quer parcelar em 12x sem juros mas a política é 6x. O que você faz?",
+                "opcoes": [
+                    "Libera 12x sem pedir autorização",
+                    "Diz que não pode e perde a venda",
+                    "Explica a política, oferece 6x e um desconto à vista",
+                    "Finge que o sistema não funciona"
+                ],
+                "correta": 2,
+                "xp": 20,
+                "recompensa_min": 40,
+                "recompensa_max": 100
+            }
+        ]
+    },
+    "domestica": {
+        "nome": "Faxina Completa",
+        "descricao": "A casa tá uma bagunça! Organize tudo no tempo certo.",
+        "perguntas": [
+            {
+                "pergunta": "Você chegou na casa do cliente. Por onde começa?",
+                "opcoes": [
+                    "Começa pelo quarto porque é mais fácil",
+                    "Começa pela cozinha e banheiro (áreas mais críticas)",
+                    "Começa varrendo a sala rapidinho",
+                    "Fica no celular esperando o cliente sair"
+                ],
+                "correta": 1,
+                "xp": 15,
+                "recompensa_min": 25,
+                "recompensa_max": 60
+            },
+            {
+                "pergunta": "O chão da cozinha tá com gordura grudada. O que você usa?",
+                "opcoes": [
+                    "Água pura e pano seco",
+                    "Detergente com água quente e esfregão",
+                    "Passa um pano rápido e finge que limpou",
+                    "Joga areia pra absorver"
+                ],
+                "correta": 1,
+                "xp": 15,
+                "recompensa_min": 25,
+                "recompensa_max": 60
+            },
+            {
+                "pergunta": "O cliente pediu pra lavar as roupas delicadas. O que você faz?",
+                "opcoes": [
+                    "Joga tudo na máquina com água quente",
+                    "Lava à mão com sabão neutro e água fria",
+                    "Mistura com as roupas normais",
+                    "Deixa de molho por 3 dias"
+                ],
+                "correta": 1,
+                "xp": 20,
+                "recompensa_min": 30,
+                "recompensa_max": 70
+            },
+            {
+                "pergunta": "Você encontrou um objeto de valor caído atrás do sofá. O que faz?",
+                "opcoes": [
+                    "Guarda no bolso, achado não é roubado",
+                    "Coloca em cima da mesa e avisa o cliente",
+                    "Deixa onde tá, não é problema seu",
+                    "Joga no lixo sem olhar"
+                ],
+                "correta": 1,
+                "xp": 25,
+                "recompensa_min": 35,
+                "recompensa_max": 80
+            },
+            {
+                "pergunta": "O cliente reclamou que o banheiro não ficou limpo. O que você faz?",
+                "opcoes": [
+                    "Diz que limpou sim e ele que tá vendo errado",
+                    "Pede desculpas, volta e limpa com capricho",
+                    "Diz que vai cobrar extra pra refazer",
+                    "Ignora e vai embora"
+                ],
+                "correta": 1,
+                "xp": 20,
+                "recompensa_min": 30,
+                "recompensa_max": 75
+            }
+        ]
+    },
+}
+
+
+def iniciar_minigame(personagem_id: int, profissao: str) -> dict:
+    if profissao not in MINIGAMES_POR_PROFISSAO:
+        return {"sucesso": False, "mensagem": "Sua profissão não tem minigame ainda."}
+    minigame = MINIGAMES_POR_PROFISSAO[profissao]
+    dados = minigame["funcao"](personagem_id)
+    dados["sucesso"] = True
+    dados["nome_minigame"] = minigame["nome"]
+    return dados
